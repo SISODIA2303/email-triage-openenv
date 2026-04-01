@@ -1,0 +1,55 @@
+id: 2
+name: Prioritization and Routing
+difficulty: medium
+description: >
+  The agent receives one email at a time and must classify it,
+  assign a priority level (P1=Critical, P2=High, P3=Medium, P4=Low),
+  and route it to the correct team. All three fields are required.
+
+objective: >
+  Correctly classify, prioritize, and route each email to minimize
+  response time and ensure critical issues reach the right team.
+
+required_action_fields:
+  - category
+  - priority
+  - routing_team
+
+optional_action_fields: []
+
+scoring:
+  method: weighted
+  components:
+    category:
+      weight: 0.40
+      scoring: binary
+    priority:
+      weight: 0.35
+      scoring: partial
+      partial_credit:
+        off_by_one: 0.5
+        off_by_two_or_more: 0.0
+    routing_team:
+      weight: 0.25
+      scoring: binary
+
+success_threshold: 0.75
+expected_baseline_score: 0.45
+
+grader: env.graders.task2_grader:Task2Grader
+
+examples:
+  - input:
+      subject: "Application crashes on startup after latest update"
+      body: "App crashes immediately. Blocking team of 12 people."
+    expected_action:
+      category: support
+      priority: P1
+      routing_team: support_team
+  - input:
+      subject: "Request for updated billing address"
+      body: "Please update our billing address to the new office."
+    expected_action:
+      category: billing
+      priority: P3
+      routing_team: billing_team

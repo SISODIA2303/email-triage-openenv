@@ -1,0 +1,39 @@
+id: 1
+name: Email Classification
+difficulty: easy
+description: >
+  The agent receives one email at a time and must classify it into
+  one of six categories: billing, support, spam, sales, hr, general.
+  Only the category field is required in the action.
+
+objective: >
+  Correctly classify each email into its ground truth category.
+
+required_action_fields:
+  - category
+
+optional_action_fields: []
+
+scoring:
+  method: exact_match
+  components:
+    category:
+      weight: 1.0
+      scoring: binary
+
+success_threshold: 0.8
+expected_baseline_score: 0.55
+
+grader: env.graders.task1_grader:Task1Grader
+
+examples:
+  - input:
+      subject: "Invoice #4521 overdue - immediate action required"
+      body: "Our invoice is 30 days overdue. Please process payment."
+    expected_action:
+      category: billing
+  - input:
+      subject: "You have WON $1,000,000 - Claim NOW!!!"
+      body: "Click here to claim your prize immediately."
+    expected_action:
+      category: spam

@@ -1,0 +1,68 @@
+name: email-triage-env
+version: "1.0.0"
+description: >
+  A real-world email triage environment where an AI agent must classify,
+  prioritize, route, and draft replies for incoming business emails.
+tags:
+  - openenv
+  - email
+  - triage
+  - nlp
+  - real-world
+
+observation_space:
+  type: structured
+  fields:
+    task_id: integer
+    current_email:
+      email_id: string
+      sender: string
+      subject: string
+      body: string
+      timestamp: string
+    emails_remaining: integer
+    current_score: float
+    step_number: integer
+    instruction: string
+
+action_space:
+  type: structured
+  fields:
+    category:
+      type: enum
+      values: [billing, support, spam, sales, hr, general]
+    priority:
+      type: enum
+      values: [P1, P2, P3, P4]
+      required_for: [task2, task3]
+    routing_team:
+      type: enum
+      values: [billing_team, support_team, sales_team, hr_team, spam_filter, general_team]
+      required_for: [task2, task3]
+    reply_draft:
+      type: string
+      required_for: [task3]
+
+reward:
+  range: [-1.0, 1.0]
+  type: dense
+  description: >
+    Partial credit reward at every step. Penalizes destructive actions.
+    Weighted across components depending on task difficulty.
+
+tasks:
+  - id: 1
+    name: Email Classification
+    difficulty: easy
+    file: tasks/task1.yaml
+  - id: 2
+    name: Prioritization and Routing
+    difficulty: medium
+    file: tasks/task2.yaml
+  - id: 3
+    name: Full Triage Pipeline
+    difficulty: hard
+    file: tasks/task3.yaml
+
+entry_point: env.email_env:EmailTriageEnv
+max_steps: 10

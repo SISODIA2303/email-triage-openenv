@@ -1,0 +1,63 @@
+id: 3
+name: Full Triage Pipeline
+difficulty: hard
+description: >
+  The agent must perform the complete triage pipeline: classify the email,
+  assign priority, route to the correct team, and draft a professional reply
+  addressing the sender's concern. All four fields are required.
+
+objective: >
+  Correctly classify, prioritize, route, and write a professional reply
+  for each incoming email. Reply quality is scored on keyword coverage
+  and minimum length.
+
+required_action_fields:
+  - category
+  - priority
+  - routing_team
+  - reply_draft
+
+optional_action_fields: []
+
+scoring:
+  method: weighted
+  components:
+    category:
+      weight: 0.25
+      scoring: binary
+    priority:
+      weight: 0.25
+      scoring: partial
+      partial_credit:
+        off_by_one: 0.5
+        off_by_two_or_more: 0.0
+    routing_team:
+      weight: 0.20
+      scoring: binary
+    reply_draft:
+      weight: 0.30
+      scoring: keyword_coverage
+      keyword_source: ground_truth.reply_keywords
+      length_bonus:
+        target_words: 30
+        weight: 0.3
+
+penalties:
+  destructive_reply: -0.3
+
+success_threshold: 0.65
+expected_baseline_score: 0.35
+
+grader: env.graders.task3_grader:Task3Grader
+
+examples:
+  - input:
+      subject: "Payment failed - credit card declined"
+      body: "Payment was declined. Please update your payment method."
+    expected_action:
+      category: billing
+      priority: P1
+      routing_team: billing_team
+      reply_draft: >
+        We apologize for the inconvenience. Please update your payment
+        details urgently to resolve this and avoid service interruption.
