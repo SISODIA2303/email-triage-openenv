@@ -1,6 +1,6 @@
 ---
 title: Email Triage OpenEnv
-emoji: e-mail
+emoji: "📧"
 colorFrom: blue
 colorTo: green
 sdk: docker
