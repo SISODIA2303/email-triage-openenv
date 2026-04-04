@@ -1,4 +1,4 @@
-﻿"""
+"""
 FastAPI wrapper around EmailTriageEnv.
 Exposes reset / step / state as both HTTP and WebSocket endpoints.
 Required for Hugging Face Spaces deployment and OpenEnv spec compliance.
