@@ -20,10 +20,11 @@ from env.models import EmailCategory, Priority, RoutingTeam
 # CONFIGURATION
 # -----------------------------------------------------------------------
 
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY")
+# At the top of inference.py, update config section:
+API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or "dummy-key"
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "Qwen/Qwen2.5-72B-Instruct")
-IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
+IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME", None)
 
 TASK_CONFIGS = [
     {"task_id": 1, "task_name": "email-classification",   "difficulty": "easy"},
