@@ -10,6 +10,7 @@ tags:
   - email
   - triage
   - reinforcement-learning
+base_path: /web
 ---
 
 # Email Triage OpenEnv
