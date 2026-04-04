@@ -93,7 +93,7 @@ class EmailTriageEnv:
         info = {
             "email_id": current_email.email_id,
             "ground_truth": ground_truth,
-            "action_taken": action.dict(),
+            "action_taken": action.model_dump(),
             "reward_breakdown": reward.breakdown,
             "total_reward": self._total_reward,
             "step": self._step_number,

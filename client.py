@@ -29,13 +29,12 @@ class EmailTriageAction(BaseModel):
 # -----------------------------------------------------------------------
 
 class StepResult(BaseModel):
-    observation: dict
-    reward: float
-    done: bool
-    info: dict = {}
+    model_config={"arbitrary_types_allowed":True}
 
-    class Config:
-        arbitrary_types_allowed = True
+    observation:dict
+    reward:float
+    done:bool
+    info:dict={}
 
 
 # -----------------------------------------------------------------------
