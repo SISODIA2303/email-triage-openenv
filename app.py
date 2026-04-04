@@ -67,12 +67,15 @@ def root():
 
 
 @app.post("/reset")
-def reset(request: ResetRequest):
-    if request.task_id not in (1, 2, 3):
-        raise HTTPException(status_code=400, detail="task_id must be 1, 2, or 3")
-    env = get_env(request.task_id)
-    obs = env.reset()
-    return {"observation": obs.dict()}
+def reset(request: Optional[ResetRequest]=None):
+    if request is None:
+        request=ResetRequest(task_id=1)
+    if request.task_id not in (1,2,3):
+        raise HTTPException(status_code=400, detail="task_id must be 1,2 or 3")
+    env=get_env(request.task_id)
+    obs=env.reset()
+    return{"observation":obs.dict()}
+    
 
 
 @app.post("/step")
