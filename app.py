@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from typing import Optional
 from env.email_env import EmailTriageEnv
 from env.models import Action, EmailCategory, Priority, RoutingTeam
+from fastapi.responses import RedirectResponse
 
 app = FastAPI(
     title="Email Triage OpenEnv",
@@ -111,6 +112,10 @@ def state(task_id: int = 1):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+@app.get("/web")
+def web():
+    return RedirectResponse(url="/docs")
 
 
 # -----------------------------------------------------------------------
