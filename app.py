@@ -5,14 +5,14 @@ Required for Hugging Face Spaces deployment and OpenEnv spec compliance.
 """
 
 import json
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
 from env.email_env import EmailTriageEnv
 from env.models import Action, EmailCategory, Priority, RoutingTeam
-from fastapi.responses import RedirectResponse
-from fastapi import Request
+
 
 app = FastAPI(
     title="Email Triage OpenEnv",
