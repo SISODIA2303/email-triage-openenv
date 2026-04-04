@@ -19,4 +19,5 @@ COPY openenv.yaml .
 
 EXPOSE 7860
 
+ENV ENABLE_WEB_INTERFACE=true
 CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]
