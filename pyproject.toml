@@ -40,4 +40,4 @@ include = ["env*"]
 
 [project.scripts]
 email-triage-env = "env.email_env:EmailTriageEnv"
-server="app:app"
+server="server.app:main"
