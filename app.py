@@ -1,4 +1,4 @@
-"""
+﻿"""
 FastAPI wrapper around EmailTriageEnv.
 Exposes reset / step / state as both HTTP and WebSocket endpoints.
 Required for Hugging Face Spaces deployment and OpenEnv spec compliance.
@@ -146,7 +146,7 @@ async def websocket_endpoint(websocket: WebSocket, task_id: int):
         "type": "connected",
         "data": {
             "task_id": task_id,
-            "message": f"Connected to Email Triage OpenEnv — Task {task_id}",
+            "message": f"Connected to Email Triage OpenEnv â€” Task {task_id}",
             "commands": ["reset", "step", "state"],
         }
     })

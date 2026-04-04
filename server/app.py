@@ -1,4 +1,4 @@
-import uvicorn
+﻿import uvicorn
 from app import app
 
 def main():
