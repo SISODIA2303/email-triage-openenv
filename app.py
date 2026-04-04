@@ -12,6 +12,7 @@ from typing import Optional
 from env.email_env import EmailTriageEnv
 from env.models import Action, EmailCategory, Priority, RoutingTeam
 from fastapi.responses import RedirectResponse
+from fastapi import Request
 
 app = FastAPI(
     title="Email Triage OpenEnv",
@@ -67,14 +68,19 @@ def root():
 
 
 @app.post("/reset")
-def reset(request: Optional[ResetRequest]=None):
-    if request is None:
-        request=ResetRequest(task_id=1)
-    if request.task_id not in (1,2,3):
-        raise HTTPException(status_code=400, detail="task_id must be 1,2 or 3")
-    env=get_env(request.task_id)
-    obs=env.reset()
-    return{"observation":obs.dict()}
+async def reset(request: Request):
+    try:
+        body = await request.json()
+        task_id = body.get("task_id", 1) if body else 1
+    except Exception:
+        task_id = 1
+    
+    if task_id not in (1, 2, 3):
+        raise HTTPException(status_code=400, detail="task_id must be 1, 2, or 3")
+    
+    env = get_env(task_id)
+    obs = env.reset()
+    return {"observation": obs.model_dump()}
     
 
 
