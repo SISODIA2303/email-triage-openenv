@@ -68,6 +68,7 @@ def root():
 
 
 @app.post("/reset")
+# v2 - handles empty body
 async def reset(request: Request):
     try:
         body = await request.json()
