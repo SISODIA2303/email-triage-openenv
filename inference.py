@@ -139,7 +139,10 @@ def build_user_prompt(observation: dict) -> str:
     )
 
 
-def call_llm(client: OpenAI, task_id: int, observation: dict) -> Optional[dict]:
+def call_llm(client, task_id: int, observation: dict) -> Optional[dict]:
+    if client is None:
+        return None
+    
     user_prompt = build_user_prompt(observation)
     try:
         completion = client.chat.completions.create(
@@ -153,7 +156,6 @@ def call_llm(client: OpenAI, task_id: int, observation: dict) -> Optional[dict]:
         )
         raw = (completion.choices[0].message.content or "").strip()
 
-        # Strip markdown fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -232,7 +234,7 @@ def action_to_str(action: EmailTriageAction) -> str:
 
 async def run_episode(
     env: EmailTriageClient,
-    llm_client: OpenAI,
+    llm_client,
     task_config: dict,
 ) -> dict:
     task_id = task_config["task_id"]
@@ -246,23 +248,24 @@ async def run_episode(
     log_start(task=task_name, env=BENCHMARK, model=MODEL_NAME)
 
     try:
-        # Reset environment
         result = await env.reset(task_id=task_id)
 
         for step in range(1, MAX_STEPS + 1):
             if result.done:
                 break
 
-            # Get observation
             observation = result.observation
-
-            # Call LLM
-            llm_output = call_llm(llm_client, task_id, observation)
-            action = parse_action(task_id, llm_output)
-            action_str = action_to_str(action)
             error = None
 
-            # Step environment
+            try:
+                llm_output = call_llm(llm_client, task_id, observation)
+                action = parse_action(task_id, llm_output)
+                action_str = action_to_str(action)
+            except Exception as e:
+                action = parse_action(task_id, None)
+                action_str = action_to_str(action)
+                error = str(e)
+
             try:
                 result = await env.step(action)
                 reward = result.reward
@@ -286,10 +289,12 @@ async def run_episode(
             if done:
                 break
 
-        # Compute final score
         score = sum(rewards) / len(rewards) if rewards else 0.0
         score = min(max(score, 0.0), 1.0)
         success = score >= SUCCESS_SCORE_THRESHOLD
+
+    except Exception as e:
+        print(f"[DEBUG] Episode error: {e}", flush=True)
 
     finally:
         log_end(
@@ -308,50 +313,56 @@ async def run_episode(
         "rewards": rewards,
     }
 
-
 # -----------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------
 
 async def main() -> None:
-    llm_client = OpenAI(
-        base_url=API_BASE_URL,
-        api_key=API_KEY,
-    )
+    try:
+        llm_client = OpenAI(
+            base_url=API_BASE_URL,
+            api_key=API_KEY,
+        )
+    except Exception as e:
+        print(f"[DEBUG] Failed to initialize LLM client: {e}", flush=True)
+        # Still run episodes with fallback
+        llm_client = None
 
     all_results = []
 
     for task_config in TASK_CONFIGS:
-        # Connect to environment
-        if IMAGE_NAME:
-            # Use local docker image
-            env = await EmailTriageClient.from_docker_image(IMAGE_NAME)
-        else:
-            # Use live HF Space
-            env = EmailTriageClient(
-                base_url="https://siddharth-sisodia-email-triage-openenv.hf.space"
-            )
-            await env.__aenter__()
-
         try:
-            result = await run_episode(env, llm_client, task_config)
-            all_results.append(result)
-        finally:
-            try:
-                await env.close()
-            except Exception as e:
-                print(f"[DEBUG] env.close() error: {e}", flush=True)
+            if IMAGE_NAME:
+                env = await EmailTriageClient.from_docker_image(IMAGE_NAME)
+            else:
+                env = EmailTriageClient(
+                    base_url="https://siddharth-sisodia-email-triage-openenv.hf.space"
+                )
+                await env.__aenter__()
 
-    # Final summary
-    overall = sum(r["score"] for r in all_results) / len(all_results)
-    print(f"\n[SUMMARY] overall_score={overall:.3f}", flush=True)
-    for r in all_results:
-        print(
-            f"[SUMMARY] task={r['task_name']} "
-            f"score={r['score']:.3f} "
-            f"success={str(r['success']).lower()}",
-            flush=True,
-        )
+            try:
+                result = await run_episode(env, llm_client, task_config)
+                all_results.append(result)
+            finally:
+                try:
+                    await env.close()
+                except Exception as e:
+                    print(f"[DEBUG] env.close() error: {e}", flush=True)
+
+        except Exception as e:
+            print(f"[DEBUG] Episode failed for task {task_config['task_id']}: {e}", flush=True)
+            log_end(success=False, steps=0, score=0.0, rewards=[])
+
+    if all_results:
+        overall = sum(r["score"] for r in all_results) / len(all_results)
+        print(f"\n[SUMMARY] overall_score={overall:.3f}", flush=True)
+        for r in all_results:
+            print(
+                f"[SUMMARY] task={r['task_name']} "
+                f"score={r['score']:.3f} "
+                f"success={str(r['success']).lower()}",
+                flush=True,
+            )
 
 
 if __name__ == "__main__":
