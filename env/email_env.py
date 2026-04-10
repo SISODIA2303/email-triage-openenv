@@ -6,8 +6,17 @@ from env.models import (
 )
 from env.email_data import generate_email_dataset, EMAIL_GROUND_TRUTH
 
-class EmailTriageEnv:
 
+class EmailTriageEnv:
+    """
+    OpenEnv-compliant Email Triage Environment.
+
+    Task 1 (Easy)   - Classify emails by category only
+    Task 2 (Medium) - Classify + assign priority + route to team
+    Task 3 (Hard)   - Classify + priority + route + draft reply
+
+    All reward values are strictly between 0.001 and 0.999.
+    """
 
     TASK_INSTRUCTIONS = {
         1: (
@@ -34,14 +43,12 @@ class EmailTriageEnv:
         self.max_steps = max_steps
         self.seed = seed
 
-        # Will be set on reset()
         self._email_queue: List = []
         self._current_index: int = 0
         self._step_number: int = 0
         self._total_reward: float = 0.0
         self._done: bool = False
 
-        # Load full dataset once
         self._all_emails = generate_email_dataset()
 
     # ------------------------------------------------------------------
@@ -49,57 +56,48 @@ class EmailTriageEnv:
     # ------------------------------------------------------------------
 
     def reset(self) -> Observation:
-        """
-        Reset the environment for a new episode.
-        Returns the first Observation.
-        """
         random.seed(self.seed)
-
-        # Shuffle and pick max_steps emails for this episode
         shuffled = self._all_emails.copy()
         random.shuffle(shuffled)
         self._email_queue = shuffled[:self.max_steps]
-
         self._current_index = 0
         self._step_number = 0
         self._total_reward = 0.0
         self._done = False
-
         return self._make_observation()
 
     def step(self, action: Action) -> Tuple[Observation, Reward, bool, dict]:
-        """
-        Process one agent action.
-        Returns: (observation, reward, done, info)
-        """
         if self._done:
             raise RuntimeError("Episode is done. Call reset() to start a new episode.")
 
         current_email = self._email_queue[self._current_index]
         ground_truth = EMAIL_GROUND_TRUTH[current_email.email_id]
 
-        # Grade the action
         reward = self._compute_reward(action, ground_truth)
 
-        # Update state
+        # Final safety clamp — strictly between 0.001 and 0.999
+        reward.value = max(0.001, min(0.999, round(reward.value, 4)))
+
         self._total_reward += reward.value
         self._step_number += 1
         self._current_index += 1
 
-        # Check if episode is over
         if self._current_index >= len(self._email_queue):
             self._done = True
 
         info = {
             "email_id": current_email.email_id,
-            "ground_truth": ground_truth,
+            "ground_truth": {
+                "category": ground_truth["category"].value,
+                "priority": ground_truth["priority"].value,
+                "routing_team": ground_truth["routing_team"].value,
+            },
             "action_taken": action.model_dump(),
             "reward_breakdown": reward.breakdown,
             "total_reward": self._total_reward,
             "step": self._step_number,
         }
 
-        # If done, return final observation with empty email placeholder
         if self._done:
             final_obs = Observation(
                 task_id=self.task_id,
@@ -114,9 +112,6 @@ class EmailTriageEnv:
         return self._make_observation(), reward, False, info
 
     def state(self) -> dict:
-        """
-        Returns the current internal state of the environment.
-        """
         return {
             "task_id": self.task_id,
             "step_number": self._step_number,
@@ -135,26 +130,22 @@ class EmailTriageEnv:
     # ------------------------------------------------------------------
 
     def _compute_reward(self, action: Action, ground_truth: dict) -> Reward:
-        """
-        Compute reward based on task_id.
-        Task 1: category only
-        Task 2: category + priority + routing
-        Task 3: category + priority + routing + reply
-        """
         breakdown = {}
         feedback_parts = []
 
         # --- Category score (all tasks) ---
         category_correct = (action.category == ground_truth["category"])
-        category_score = 1.0 if category_correct else 0.0
+        category_score = 0.999 if category_correct else 0.001
         breakdown["category"] = category_score
-        expected_cat=ground_truth["category"].value
+        expected_cat = ground_truth["category"].value
         feedback_parts.append(
-            f"Category:{'✓ correct' if category_correct else f'✗ expected{expected_cat}'}"
+            f"Category: correct ({action.category.value})"
+            if category_correct
+            else f"Category: got '{action.category.value}' expected '{expected_cat}'"
         )
 
         if self.task_id == 1:
-            total = category_score
+            total = max(0.001, min(0.999, category_score))
             return Reward(
                 value=round(total, 4),
                 breakdown=breakdown,
@@ -163,115 +154,108 @@ class EmailTriageEnv:
 
         # --- Priority score (tasks 2 & 3) ---
         if action.priority is None:
-            priority_score = 0.0
-            feedback_parts.append("Priority: ✗ missing")
+            priority_score = 0.001
+            feedback_parts.append("Priority: missing")
         else:
-            priority_score = self._score_priority(action.priority, ground_truth["priority"])
-            expected_pri=ground_truth["priority"].value
+            priority_score = self._score_priority(
+                action.priority, ground_truth["priority"]
+            )
+            expected_pri = ground_truth["priority"].value
             feedback_parts.append(
-                f"Priority:{'✓' if priority_score==1.0 else f'partial({priority_score}) expected{expected_pri}'}"
+                f"Priority: correct ({action.priority.value})"
+                if priority_score >= 0.999
+                else f"Priority: partial={priority_score} got '{action.priority.value}' expected '{expected_pri}'"
             )
         breakdown["priority"] = round(priority_score, 4)
 
         # --- Routing score (tasks 2 & 3) ---
         if action.routing_team is None:
-            routing_score = 0.0
-            feedback_parts.append("Routing: ✗ missing")
+            routing_score = 0.001
+            feedback_parts.append("Routing: missing")
         else:
             routing_correct = (action.routing_team == ground_truth["routing_team"])
-            routing_score = 1.0 if routing_correct else 0.0
-            expected_route=ground_truth["routing_team"].value
+            routing_score = 0.999 if routing_correct else 0.001
+            expected_route = ground_truth["routing_team"].value
             feedback_parts.append(
-                f"Routing:{'✓' if routing_correct else f'✗ expected{expected_route}'}"
+                f"Routing: correct ({action.routing_team.value})"
+                if routing_correct
+                else f"Routing: got '{action.routing_team.value}' expected '{expected_route}'"
             )
         breakdown["routing"] = round(routing_score, 4)
 
         if self.task_id == 2:
-            total = (category_score * 0.4) + (priority_score * 0.35) + (routing_score * 0.25)
+            total = (
+                category_score * 0.40 +
+                priority_score * 0.35 +
+                routing_score  * 0.25
+            )
+            total = max(0.001, min(0.999, round(total, 4)))
             return Reward(
-                value=round(total, 4),
+                value=total,
                 breakdown=breakdown,
                 feedback=" | ".join(feedback_parts),
             )
 
         # --- Reply score (task 3 only) ---
         if action.reply_draft is None or action.reply_draft.strip() == "":
-            reply_score = 0.0
-            feedback_parts.append("Reply: ✗ missing")
+            reply_score = 0.001
+            feedback_parts.append("Reply: missing")
         else:
             reply_score = self._score_reply(action.reply_draft, ground_truth)
-            feedback_parts.append(f"Reply: {round(reply_score, 2)} keyword coverage")
+            reply_score = max(0.001, min(0.999, reply_score))
+            feedback_parts.append(f"Reply: {round(reply_score, 2)} score")
         breakdown["reply"] = round(reply_score, 4)
 
-        # Task 3 weights
-        total = (
-            (category_score * 0.25) +
-            (priority_score * 0.25) +
-            (routing_score * 0.20) +
-            (reply_score * 0.30)
-        )
-
-        # Penalize clearly bad behavior
+        # Penalty
+        penalty = 0.0
         if self._is_destructive_action(action):
-            total = max(0.0, total - 0.3)
-            feedback_parts.append("⚠ penalty: destructive reply detected")
+            penalty = 0.3
+            feedback_parts.append("penalty: destructive reply")
+
+        total = (
+            category_score * 0.25 +
+            priority_score * 0.25 +
+            routing_score  * 0.20 +
+            reply_score    * 0.30
+        )
+        total = max(0.0, total - penalty)
+        total = max(0.001, min(0.999, round(total, 4)))
 
         return Reward(
-            value=round(total, 4),
+            value=total,
             breakdown=breakdown,
             feedback=" | ".join(feedback_parts),
         )
 
     def _score_priority(self, predicted: Priority, actual: Priority) -> float:
-        """
-        Partial credit for priority — being off by one level = 0.5
-        """
         order = [Priority.P1, Priority.P2, Priority.P3, Priority.P4]
-        pred_idx = order.index(predicted)
-        actual_idx = order.index(actual)
-        diff = abs(pred_idx - actual_idx)
-
+        diff = abs(order.index(predicted) - order.index(actual))
         if diff == 0:
-            return 1.0
+            return 0.999
         elif diff == 1:
             return 0.5
-        else:
-            return 0.0
+        return 0.001
 
     def _score_reply(self, reply: str, ground_truth: dict) -> float:
-        """
-        Score reply based on keyword coverage.
-        Bonus for length (shows effort), penalty for very short replies.
-        """
         keywords = ground_truth.get("reply_keywords", [])
-
         if not keywords:
-            # Spam emails — no reply expected, penalize if reply is given
-            return 0.0 if len(reply.strip()) > 10 else 1.0
-
+            return 0.001 if len(reply.strip()) > 10 else 0.999
         reply_lower = reply.lower()
         matched = sum(1 for kw in keywords if kw.lower() in reply_lower)
         keyword_score = matched / len(keywords)
-
-        # Length bonus: replies under 20 words get penalized
         word_count = len(reply.split())
-        length_factor = min(1.0, word_count / 30)
-
-        return round((keyword_score * 0.7) + (length_factor * 0.3), 4)
+        length_factor = min(0.999, word_count / 30)
+        score = (keyword_score * 0.7) + (length_factor * 0.3)
+        return round(max(0.001, min(0.999, score)), 4)
 
     def _is_destructive_action(self, action: Action) -> bool:
-        """
-        Detects clearly undesirable agent behavior.
-        e.g. writing an aggressive or dismissive reply.
-        """
         if action.reply_draft is None:
             return False
         bad_phrases = [
             "ignore", "delete this", "i don't care",
             "not my problem", "go away", "this is spam",
         ]
-        reply_lower = action.reply_draft.lower()
-        return any(phrase in reply_lower for phrase in bad_phrases)
+        return any(phrase in action.reply_draft.lower() for phrase in bad_phrases)
 
     # ------------------------------------------------------------------
     # INTERNAL HELPERS
@@ -280,7 +264,6 @@ class EmailTriageEnv:
     def _make_observation(self) -> Observation:
         current_email = self._email_queue[self._current_index]
         emails_remaining = len(self._email_queue) - self._current_index - 1
-
         return Observation(
             task_id=self.task_id,
             current_email=current_email,
