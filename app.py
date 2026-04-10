@@ -68,17 +68,16 @@ def root():
 
 
 @app.post("/reset")
-# v2 - handles empty body
 async def reset(request: Request):
     try:
         body = await request.json()
         task_id = body.get("task_id", 1) if body else 1
     except Exception:
         task_id = 1
-    
+
     if task_id not in (1, 2, 3):
         raise HTTPException(status_code=400, detail="task_id must be 1, 2, or 3")
-    
+
     env = get_env(task_id)
     obs = env.reset()
     return {"observation": obs.model_dump()}
@@ -91,6 +90,11 @@ def step(request: StepRequest):
         raise HTTPException(status_code=400, detail="task_id must be 1, 2, or 3")
 
     env = get_env(request.task_id)
+
+    # Auto-reset if episode not started or already done
+    if not env._email_queue or env._done:
+        env.reset()
+
     action = Action(
         category=request.category,
         priority=request.priority,
@@ -104,8 +108,8 @@ def step(request: StepRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     return {
-        "observation": obs.dict(),
-        "reward": reward.dict(),
+        "observation": obs.model_dump(),
+        "reward": reward.model_dump(),
         "done": done,
         "info": info,
     }
