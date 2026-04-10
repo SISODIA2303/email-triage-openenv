@@ -6,7 +6,7 @@ class Task3Grader:
     """
     Task 3 - HARD: Full triage pipeline.
     Weights: category=0.25, priority=0.25, routing=0.20, reply=0.30
-    Reply scored on keyword coverage + length factor.
+    Score strictly between 0.001 and 0.999.
     """
 
     WEIGHTS = {
@@ -19,8 +19,8 @@ class Task3Grader:
     def grade(self, email_id: str, action: Action) -> Reward:
         if email_id not in EMAIL_GROUND_TRUTH:
             return Reward(
-                value=0.0,
-                breakdown={"category": 0.0, "priority": 0.0, "routing": 0.0, "reply": 0.0},
+                value=0.001,
+                breakdown={"category": 0.001, "priority": 0.001, "routing": 0.001, "reply": 0.001},
                 feedback=f"Unknown email_id: {email_id}",
             )
 
@@ -30,62 +30,61 @@ class Task3Grader:
 
         # --- Category ---
         category_correct = action.category == ground_truth["category"]
-        category_score = 1.0 if category_correct else 0.0
+        category_score = 0.999 if category_correct else 0.001
         breakdown["category"] = category_score
         expected_cat = ground_truth["category"].value
         feedback_parts.append(
-            f"Category: ✓ ({action.category.value})"
+            f"Category: correct ({action.category.value})"
             if category_correct
-            else f"Category: ✗ got '{action.category.value}' expected '{expected_cat}'"
+            else f"Category: got '{action.category.value}' expected '{expected_cat}'"
         )
 
         # --- Priority ---
         if action.priority is None:
-            priority_score = 0.0
-            feedback_parts.append("Priority: ✗ missing")
+            priority_score = 0.001
+            feedback_parts.append("Priority: missing")
         else:
             priority_score = self._score_priority(
                 action.priority, ground_truth["priority"]
             )
             expected_pri = ground_truth["priority"].value
             feedback_parts.append(
-                f"Priority: ✓ ({action.priority.value})"
-                if priority_score == 1.0
+                f"Priority: correct ({action.priority.value})"
+                if priority_score >= 0.999
                 else f"Priority: partial={priority_score} got '{action.priority.value}' expected '{expected_pri}'"
             )
         breakdown["priority"] = round(priority_score, 4)
 
         # --- Routing ---
         if action.routing_team is None:
-            routing_score = 0.0
-            feedback_parts.append("Routing: ✗ missing")
+            routing_score = 0.001
+            feedback_parts.append("Routing: missing")
         else:
             routing_correct = action.routing_team == ground_truth["routing_team"]
-            routing_score = 1.0 if routing_correct else 0.0
+            routing_score = 0.999 if routing_correct else 0.001
             expected_route = ground_truth["routing_team"].value
             feedback_parts.append(
-                f"Routing: ✓ ({action.routing_team.value})"
+                f"Routing: correct ({action.routing_team.value})"
                 if routing_correct
-                else f"Routing: ✗ got '{action.routing_team.value}' expected '{expected_route}'"
+                else f"Routing: got '{action.routing_team.value}' expected '{expected_route}'"
             )
         breakdown["routing"] = round(routing_score, 4)
 
         # --- Reply ---
         if action.reply_draft is None or action.reply_draft.strip() == "":
-            reply_score = 0.0
-            feedback_parts.append("Reply: ✗ missing")
+            reply_score = 0.001
+            feedback_parts.append("Reply: missing")
         else:
-            reply_score = self._score_reply(
-                action.reply_draft, ground_truth
-            )
+            reply_score = self._score_reply(action.reply_draft, ground_truth)
+            reply_score = max(0.001, min(0.999, reply_score))
             feedback_parts.append(f"Reply: {round(reply_score, 2)} score")
         breakdown["reply"] = round(reply_score, 4)
 
-        # --- Penalty for destructive reply ---
+        # --- Penalty ---
         penalty = 0.0
         if self._is_destructive(action.reply_draft):
             penalty = 0.3
-            feedback_parts.append("⚠ penalty: destructive reply detected")
+            feedback_parts.append("penalty: destructive reply")
 
         total = (
             category_score * self.WEIGHTS["category"] +
@@ -93,7 +92,8 @@ class Task3Grader:
             routing_score * self.WEIGHTS["routing"] +
             reply_score * self.WEIGHTS["reply"]
         )
-        total = max(0.0, round(total - penalty, 4))
+        total = max(0.0, total - penalty)
+        total = max(0.001, min(0.999, round(total, 4)))
 
         return Reward(
             value=total,
@@ -103,7 +103,7 @@ class Task3Grader:
 
     def grade_episode(self, results: list) -> dict:
         if not results:
-            return {"average_score": 0.0, "graded": 0}
+            return {"average_score": 0.001, "graded": 0}
 
         total = 0.0
         component_totals = {"category": 0.0, "priority": 0.0, "routing": 0.0, "reply": 0.0}
@@ -116,7 +116,7 @@ class Task3Grader:
 
         n = len(results)
         return {
-            "average_score": round(total / n, 4),
+            "average_score": round(max(0.001, min(0.999, total / n)), 4),
             "total_score": round(total, 4),
             "avg_category": round(component_totals["category"] / n, 4),
             "avg_priority": round(component_totals["priority"] / n, 4),
@@ -129,27 +129,22 @@ class Task3Grader:
         order = [Priority.P1, Priority.P2, Priority.P3, Priority.P4]
         diff = abs(order.index(predicted) - order.index(actual))
         if diff == 0:
-            return 1.0
+            return 0.999
         elif diff == 1:
             return 0.5
-        return 0.0
+        return 0.001
 
     def _score_reply(self, reply: str, ground_truth: dict) -> float:
         keywords = ground_truth.get("reply_keywords", [])
-
-        # Spam — no reply expected
         if not keywords:
-            return 0.0 if len(reply.strip()) > 10 else 1.0
-
+            return 0.001 if len(reply.strip()) > 10 else 0.999
         reply_lower = reply.lower()
         matched = sum(1 for kw in keywords if kw.lower() in reply_lower)
         keyword_score = matched / len(keywords)
-
-        # Length factor — reward replies of at least 30 words
         word_count = len(reply.split())
-        length_factor = min(1.0, word_count / 30)
-
-        return round((keyword_score * 0.7) + (length_factor * 0.3), 4)
+        length_factor = min(0.999, word_count / 30)
+        score = (keyword_score * 0.7) + (length_factor * 0.3)
+        return round(max(0.001, min(0.999, score)), 4)
 
     def _is_destructive(self, reply: str) -> bool:
         if not reply:
