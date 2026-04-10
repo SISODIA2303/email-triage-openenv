@@ -1,6 +1,19 @@
 ---
 title: Email Triage OpenEnv
-emoji: "ðŸ“§"
+emoji: "🤖"
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+tags:
+  - openenv
+  - email
+  - triage
+  - reinforcement-learning
+---
+---
+title: Email Triage OpenEnv
+emoji: "Ã°Å¸â€œÂ§"
 colorFrom: blue
 colorTo: green
 sdk: docker
