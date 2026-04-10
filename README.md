@@ -1,6 +1,6 @@
 ---
 title: Email Triage OpenEnv
-emoji: "📧"
+emoji: "ðŸ“§"
 colorFrom: blue
 colorTo: green
 sdk: docker
@@ -10,7 +10,7 @@ tags:
   - email
   - triage
   - reinforcement-learning
-base_path: /web
+
 ---
 
 # Email Triage OpenEnv
